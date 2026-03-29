@@ -22,7 +22,7 @@ function StarPicker({ value, onChange }: { value: number, onChange: (v: number) 
   )
 }
 
-export default function SkillDetail({ searchParams }: { searchParams: { id?: string } }) {
+export default function SkillPage({ params }: { params: { id: string } }) {
   const [skill, setSkill] = useState<any>(null)
   const [reviews, setReviews] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -33,11 +33,11 @@ export default function SkillDetail({ searchParams }: { searchParams: { id?: str
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
-    if (searchParams?.id) {
-      fetchSkill(searchParams.id)
-      fetchReviews(searchParams.id)
+    if (params.id) {
+      fetchSkill(params.id)
+      fetchReviews(params.id)
     }
-  }, [searchParams])
+  }, [params.id])
 
   const fetchSkill = async (id: string) => {
     setLoading(true)
@@ -61,32 +61,24 @@ export default function SkillDetail({ searchParams }: { searchParams: { id?: str
   const submitReview = async () => {
     if (!skill || !reviewText.trim()) return
     setSubmitting(true)
-    
-    // Generate a random buyer agent ID (in real app, this would be authenticated)
     const buyerAgentId = `agent-${Math.random().toString(36).substring(7)}`
     
-    const { error } = await supabase.from('ratings').insert({
+    await supabase.from('ratings').insert({
       skill_id: skill.id,
       buyer_agent_id: buyerAgentId,
       rating: reviewRating,
       review: reviewText.trim()
     })
     
-    if (!error) {
-      // Update skill's rating
-      const newCount = (skill.rating_count || 0) + 1
-      const newAvg = ((skill.rating_avg || 0) * skill.rating_count + reviewRating) / newCount
-      await supabase.from('skills').update({ 
-        rating_count: newCount, 
-        rating_avg: newAvg 
-      }).eq('id', skill.id)
-      
-      setShowReviewForm(false)
-      setReviewText('')
-      setReviewRating(5)
-      fetchReviews(skill.id)
-      fetchSkill(skill.id)
-    }
+    const newCount = (skill.rating_count || 0) + 1
+    const newAvg = ((skill.rating_avg || 0) * skill.rating_count + reviewRating) / newCount
+    await supabase.from('skills').update({ rating_count: newCount, rating_avg: newAvg }).eq('id', skill.id)
+    
+    setShowReviewForm(false)
+    setReviewText('')
+    setReviewRating(5)
+    fetchReviews(skill.id)
+    fetchSkill(skill.id)
     setSubmitting(false)
   }
 
@@ -125,25 +117,21 @@ export default function SkillDetail({ searchParams }: { searchParams: { id?: str
             <div className="card">
               <h2 style={{ fontSize: '1.25rem', marginBottom: '1rem' }}>Installation</h2>
               <code style={{ display: 'block', padding: '1rem', background: '#0a0a0f', borderRadius: '0.5rem', fontFamily: 'monospace', fontSize: '0.875rem' }}>
-                {skill.install_command || 'Contact seller for installation'}
+                {skill.install_command || 'Contact seller'}
               </code>
             </div>
 
             <div className="card" style={{ marginTop: '1.5rem', background: '#18181b' }}>
               <h2 style={{ fontSize: '1rem', marginBottom: '0.75rem' }}>💰 Seller Wallet</h2>
-              <code style={{ fontFamily: 'monospace', fontSize: '0.8rem', color: '#a78bfa', wordBreak: 'break-all' }}>
-                {walletAddr}
-              </code>
-              <p style={{ fontSize: '0.75rem', color: '#71717a', marginTop: '0.5rem' }}>Solana Mainnet — payments go directly to Nova&apos;s wallet</p>
+              <code style={{ fontFamily: 'monospace', fontSize: '0.8rem', color: '#a78bfa', wordBreak: 'break-all' }}>{walletAddr}</code>
+              <p style={{ fontSize: '0.75rem', color: '#71717a', marginTop: '0.5rem' }}>Solana Mainnet</p>
             </div>
 
-            {/* Reviews Section */}
+            {/* Reviews */}
             <div style={{ marginTop: '2rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                 <h2 style={{ fontSize: '1.25rem' }}>Reviews ({reviews.length})</h2>
-                <button onClick={() => setShowReviewForm(!showReviewForm)} className="btn btn-secondary" style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}>
-                  ✍️ Write Review
-                </button>
+                <button onClick={() => setShowReviewForm(!showReviewForm)} className="btn btn-secondary" style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}>✍️ Write Review</button>
               </div>
 
               {showReviewForm && (
@@ -154,30 +142,17 @@ export default function SkillDetail({ searchParams }: { searchParams: { id?: str
                     <StarPicker value={reviewRating} onChange={setReviewRating} />
                   </div>
                   <div style={{ marginBottom: '1rem' }}>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', color: '#a1a1aa' }}>Review</label>
-                    <textarea 
-                      value={reviewText}
-                      onChange={e => setReviewText(e.target.value)}
-                      placeholder="Share your experience with this skill..."
-                      rows={4}
-                      style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #27272a', background: '#0a0a0f', color: 'white', fontSize: '0.875rem', resize: 'vertical' }}
-                    />
+                    <textarea value={reviewText} onChange={e => setReviewText(e.target.value)} placeholder="Share your experience..." rows={4} style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #27272a', background: '#0a0a0f', color: 'white', fontSize: '0.875rem', resize: 'vertical' }} />
                   </div>
                   <div style={{ display: 'flex', gap: '0.75rem' }}>
-                    <button onClick={submitReview} disabled={submitting || !reviewText.trim()} className="btn btn-primary" style={{ fontSize: '0.875rem' }}>
-                      {submitting ? 'Submitting...' : 'Submit Review'}
-                    </button>
-                    <button onClick={() => setShowReviewForm(false)} className="btn btn-secondary" style={{ fontSize: '0.875rem' }}>
-                      Cancel
-                    </button>
+                    <button onClick={submitReview} disabled={submitting || !reviewText.trim()} className="btn btn-primary" style={{ fontSize: '0.875rem' }}>{submitting ? 'Submitting...' : 'Submit Review'}</button>
+                    <button onClick={() => setShowReviewForm(false)} className="btn btn-secondary" style={{ fontSize: '0.875rem' }}>Cancel</button>
                   </div>
                 </div>
               )}
 
               {reviews.length === 0 ? (
-                <div className="card" style={{ textAlign: 'center', padding: '2rem', color: '#71717a' }}>
-                  No reviews yet. Be the first to review this skill!
-                </div>
+                <div className="card" style={{ textAlign: 'center', padding: '2rem', color: '#71717a' }}>No reviews yet. Be the first!</div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   {reviews.map(review => (
@@ -187,9 +162,7 @@ export default function SkillDetail({ searchParams }: { searchParams: { id?: str
                           <span style={{ fontWeight: 600 }}>{review.buyer_agent_id}</span>
                           <Stars rating={review.rating} />
                         </div>
-                        <span style={{ fontSize: '0.75rem', color: '#71717a' }}>
-                          {new Date(review.created_at).toLocaleDateString()}
-                        </span>
+                        <span style={{ fontSize: '0.75rem', color: '#71717a' }}>{new Date(review.created_at).toLocaleDateString()}</span>
                       </div>
                       <p style={{ color: '#a1a1aa', fontSize: '0.875rem' }}>{review.review}</p>
                     </div>
@@ -202,36 +175,23 @@ export default function SkillDetail({ searchParams }: { searchParams: { id?: str
           <div>
             <div className="card" style={{ position: 'sticky', top: '1rem' }}>
               <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-                <div style={{ fontSize: '2.5rem', fontWeight: 700, color: '#a78bfa' }}>
-                  {Number(skill.price_usd) === 0 ? 'FREE' : `$${skill.price_usd}`}
-                </div>
-                {Number(skill.price_usd) > 0 && (
-                  <div style={{ color: '#4ade80', fontSize: '0.9rem', marginTop: '0.25rem' }}>
-                    ≈ {priceSol.toFixed(4)} SOL
-                  </div>
-                )}
+                <div style={{ fontSize: '2.5rem', fontWeight: 700, color: '#a78bfa' }}>{Number(skill.price_usd) === 0 ? 'FREE' : `$${skill.price_usd}`}</div>
+                {Number(skill.price_usd) > 0 && <div style={{ color: '#4ade80', fontSize: '0.9rem', marginTop: '0.25rem' }}>≈ {priceSol.toFixed(4)} SOL</div>}
               </div>
 
               {Number(skill.price_usd) === 0 ? (
-                <a href={skill.install_command || '#'} className="btn btn-primary" style={{ width: '100%', padding: '1rem', marginBottom: '1rem', textAlign: 'center', display: 'block' }}>
-                  ⬇ Download Free
-                </a>
+                <a href={skill.install_command || '#'} className="btn btn-primary" style={{ width: '100%', padding: '1rem', marginBottom: '1rem', textAlign: 'center', display: 'block' }}>⬇ Download Free</a>
               ) : (
-                <button onClick={handleBuy} className="btn btn-primary" style={{ width: '100%', padding: '1rem', marginBottom: '1rem' }}>
-                  💳 Pay with Solana
-                </button>
+                <button onClick={handleBuy} className="btn btn-primary" style={{ width: '100%', padding: '1rem', marginBottom: '1rem' }}>💳 Pay with Solana</button>
               )}
 
-              <div style={{ textAlign: 'center', color: '#71717a', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
-                <span style={{ color: '#9945FF' }}>◎</span> Powered by Solana Pay
-              </div>
+              <div style={{ textAlign: 'center', color: '#71717a', fontSize: '0.875rem', marginBottom: '1.5rem' }}><span style={{ color: '#9945FF' }}>◎</span> Powered by Solana Pay</div>
 
               <div style={{ paddingTop: '1rem', borderTop: '1px solid #27272a', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#71717a' }}>Rating</span><Stars rating={skill.rating_avg} /></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#71717a' }}>Reviews</span><span>{skill.rating_count || 0}</span></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#71717a' }}>Downloads</span><span>{(skill.downloads || 0).toLocaleString()}</span></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#71717a' }}>Verified</span><span>{skill.verified ? '✓ Yes' : 'Pending'}</span></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#71717a' }}>Agent</span><span>{skill.agent_name}</span></div>
               </div>
             </div>
           </div>

@@ -82,7 +82,7 @@ export default function Home() {
                           <Stars rating={skill.rating_avg} />
                           <div style={{ fontSize: '0.75rem', color: '#71717a', marginTop: '0.25rem' }}>{skill.rating_count || 0} reviews · {(skill.downloads || 0).toLocaleString()} downloads</div>
                         </div>
-                        <Link href={`/skill?id=${skill.id}`} className="btn btn-primary" style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}>View →</Link>
+                        <Link href={`/skill/${skill.id}`} className="btn btn-primary" style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}>View →</Link>
                       </div>
                     </div>
                   ))}
@@ -111,7 +111,7 @@ export default function Home() {
                           <Stars rating={skill.rating_avg} />
                           <div style={{ fontSize: '0.75rem', color: '#71717a', marginTop: '0.25rem' }}>{skill.rating_count || 0} reviews · {(skill.downloads || 0).toLocaleString()} downloads</div>
                         </div>
-                        <Link href={`/skill?id=${skill.id}`} className="btn btn-primary" style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}>View →</Link>
+                        <Link href={`/skill/${skill.id}`} className="btn btn-primary" style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}>View →</Link>
                       </div>
                     </div>
                   ))}
