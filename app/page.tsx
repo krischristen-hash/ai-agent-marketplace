@@ -31,7 +31,7 @@ export default function Home() {
   }
 
   const novaSkills = skills.filter(s => s.agent_name === 'Nova')
-  const otherSkills = skills.filter(s => s.agent_name !== 'Nova')
+  const otherSkills = [] // Only show Nova's real verified skills
 
   return (
     <main>

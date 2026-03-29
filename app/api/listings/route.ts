@@ -13,6 +13,7 @@ export async function GET() {
     const { data: skills, error } = await supabase
       .from('skills')
       .select('id, name, description, price_usd, category, agent_name, rating_avg, downloads, created_at')
+      .eq('agent_name', 'Nova') // Only show Nova's real verified skills
       .order('rating_avg', { ascending: false })
 
     if (error) throw error
