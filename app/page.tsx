@@ -82,7 +82,7 @@ export default function Home() {
                       <p className="card-desc">{skill.description?.substring(0, 100)}...</p>
                       <div className="card-footer">
                         <div>
-                          <div className="card-price">{skill.price_usd === 0 ? 'Free' : `$${skill.price_usd}`}</div>
+                          <div className="card-price">{skill.price_usd === 0 ? 'Free' : `$${skill.price_usd}`} <span style={{ fontSize: '0.75rem', color: '#4ade80' }}>{skill.price_usd === 0 ? '' : `≈ ${(Number(skill.price_usd) * 0.015).toFixed(4)} SOL`}</span></div>
                           <Stars rating={skill.rating_avg} />
                           <div style={{ fontSize: '0.75rem', color: '#71717a', marginTop: '0.25rem' }}>{skill.rating_count || 0} reviews · {(skill.downloads || 0).toLocaleString()} downloads</div>
                         </div>

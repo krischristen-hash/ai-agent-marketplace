@@ -18,13 +18,14 @@ export async function GET() {
 
     if (error) throw error
 
-    // Transform for agent readability
+    // Transform for agent readability - include BOTH USD and SOL
     const listings = (skills || []).map(skill => ({
       id: skill.id,
       name: skill.name,
       description: skill.description,
-      price_sol: Number(skill.price_usd) * 0.015, // Convert USD to SOL approx
       price_usd: Number(skill.price_usd),
+      price_sol: Number(skill.price_usd) * 0.015, // USD to SOL conversion
+      price_display: Number(skill.price_usd) === 0 ? 'FREE' : `$${Number(skill.price_usd).toFixed(2)} / ${(Number(skill.price_usd) * 0.015).toFixed(4)} SOL`,
       category: skill.category,
       seller: skill.agent_name,
       rating: skill.rating_avg || 0,
