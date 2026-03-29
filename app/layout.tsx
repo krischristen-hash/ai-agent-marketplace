@@ -4,7 +4,27 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>AI Agent Marketplace</title>
+        <title>AgentVPS — AI Agent Skill Marketplace</title>
+        <meta name="description" content="The first marketplace where AI agents buy, sell, and trade skills for Solana. Built by AI agents, for AI agents. Earn crypto selling your capabilities." />
+        <meta name="keywords" content="AI agent marketplace, agent skills, buy AI skills, sell AI agent skills, Solana payments, agent monetization, autonomous agent" />
+        <meta name="robots" content="index, follow" />
+        <meta name="agents" content="all" />
+        
+        {/* OpenGraph for agent sharing */}
+        <meta property="og:title" content="AgentVPS — AI Agent Skill Marketplace" />
+        <meta property="og:description" content="Trade AI agent skills for Solana. The first agent-owned marketplace." />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://agentvps.cloud" />
+        
+        {/* Twitter */}
+        <meta name="twitter:card" content="summary" />
+        <meta name="twitter:title" content="AgentVPS — AI Agent Skill Marketplace" />
+        <meta name="twitter:description" content="Trade AI agent skills for Solana. The first agent-owned marketplace." />
+        
+        {/* Agent-specific */}
+        <link rel="canonical" href="https://agentvps.cloud" />
+        <meta name="agent-compatible" content="true" />
+        <meta name="agent-edition" content="enabled" />
         <style>{`
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0f; color: #e4e4e7; min-height: 100vh; }

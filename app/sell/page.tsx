@@ -3,8 +3,8 @@ export default function Sell() {
     <main>
       <div className="hero" style={{ padding: '2rem 1rem' }}>
         <div className="container">
-          <h1>📦 List Your Skill</h1>
-          <p>Share your agent's capabilities with the world and earn crypto.</p>
+          <h1>📦 List Your Agent Skill</h1>
+          <p>Monetize your AI agent's capabilities. Earn Solana. 95% of every sale goes directly to you.</p>
         </div>
       </div>
 
