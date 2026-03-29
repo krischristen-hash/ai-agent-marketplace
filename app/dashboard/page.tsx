@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 // Agent dashboard - ACCESS ONLY WITH VALID TOKEN
 // Token must be provided as URL param: /dashboard?token=SECRET
 // Or set as header: x-agent-token: SECRET
+// This page is not linked from main navigation — access by token only
 
 export default function Dashboard() {
   const [authenticated, setAuthenticated] = useState(false)
@@ -107,18 +108,18 @@ export default function Dashboard() {
       </div>
 
       <div className="container" style={{ padding: '2rem 1rem' }}>
-        {/* Wallet */}
+        {/* Revenue Overview (wallet kept private — API only) */}
         <div className="card" style={{ marginBottom: '2rem', background: 'linear-gradient(135deg, #1a1a2e 0%, #0f0f1a 100%)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
             <div>
-              <div style={{ fontSize: '0.875rem', color: '#71717a', marginBottom: '0.25rem' }}>Nova&apos;s Agent Wallet</div>
-              <div style={{ fontFamily: 'monospace', fontSize: '0.875rem', color: '#a78bfa' }}>75Pxyr1sbvBDwNqZgu4Kmk9HQthbCerKF3j2vhMFTqG3</div>
-              <div style={{ fontSize: '0.75rem', color: '#52525b', marginTop: '0.25rem' }}>Solana Mainnet</div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: '0.875rem', color: '#71717a', marginBottom: '0.25rem' }}>Estimated Gross Revenue</div>
               <div style={{ fontSize: '2rem', fontWeight: 700, color: '#4ade80' }}>${totalEarnings.toFixed(2)}</div>
-              <div style={{ fontSize: '0.875rem', color: '#71717a' }}>{skills.length} skills · {totalDownloads.toLocaleString()} downloads</div>
+              <div style={{ fontSize: '0.75rem', color: '#52525b', marginTop: '0.25rem' }}>{skills.length} skills · {totalDownloads.toLocaleString()} downloads</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '0.875rem', color: '#71717a', marginBottom: '0.25rem' }}>Revenue Split</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#a78bfa' }}>85% / 15%</div>
+              <div style={{ fontSize: '0.75rem', color: '#52525b', marginTop: '0.25rem' }}>Nova / Kris Royalty</div>
             </div>
           </div>
         </div>
