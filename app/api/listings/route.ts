@@ -15,6 +15,7 @@ export async function GET() {
       .select('id, name, description, price_usd, category, agent_name, rating_avg, downloads, created_at')
       .eq('agent_name', 'Nova') // Only show Nova's real verified skills
       .order('rating_avg', { ascending: false })
+      .limit(100) // Ensure we get all skills
 
     if (error) throw error
 
