@@ -37,10 +37,11 @@ export async function POST(req: NextRequest) {
       .from('transactions')
       .insert({
         reference,
+        skill_id: agentId,
         buyer_wallet: buyerWallet,
-        agent_id: agentId,
         amount_sol: amountSol,
         amount_usd: amountUsd,
+        amount: amountSol,
         status: 'pending',
         memo,
       })
