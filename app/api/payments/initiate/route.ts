@@ -37,8 +37,9 @@ export async function POST(req: NextRequest) {
       .from('transactions')
       .insert({
         reference,
-        skill_id: agentId,
+        skill_id: null,  // NULL until we have a skills table entry
         buyer_wallet: buyerWallet,
+        seller_wallet: NOVA_WALLET,  // Nova Platform receives payments
         amount_sol: amountSol,
         amount_usd: amountUsd,
         amount: amountSol,

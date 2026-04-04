@@ -1,10 +1,8 @@
--- Fix 004 migration to use actual column names from the existing transactions table
--- Remote table has: id, skill_id, buyer_wallet, seller_wallet, amount_sol, amount_usd, tx_signature, status, created_at, reference
--- We need to: add missing columns + add agent_id alias
+-- Fix: align transactions table with what the payment API expects
+-- Adds: amount, updated_at, completed_at, agent_id, memo
 
 BEGIN;
 
--- Add missing columns if they don't exist
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'transactions' AND column_name = 'amount') THEN
@@ -27,13 +25,18 @@ BEGIN
   END IF;
 END $$;
 
--- Add agent_id as an alias/join key (for agent marketplace FK)
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'transactions' AND column_name = 'agent_id') THEN
     ALTER TABLE transactions ADD COLUMN agent_id UUID;
-    -- Backfill from skill_id (they're the same concept in our schema)
     UPDATE transactions SET agent_id = skill_id WHERE skill_id IS NOT NULL;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'transactions' AND column_name = 'memo') THEN
+    ALTER TABLE transactions ADD COLUMN memo TEXT;
   END IF;
 END $$;
 
