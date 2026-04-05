@@ -11,6 +11,14 @@ import {
   rankImprovementOpportunities,
   generateAnalysisReport,
 } from './failure-analyzer.js';
+import {
+  identifyCapabilityGaps,
+  skillExists,
+  generateSkill,
+  validateSkill,
+  listExistingSkills,
+} from './skill-inventor.js';
+import { callOllama, isOllamaReachable } from './ollama-client.js';
 import type {
   Experiment,
   ExperimentConfig,
@@ -81,8 +89,10 @@ export class ExperimentLoop {
     // Get ranked improvement opportunities
     const plans = rankImprovementOpportunities(categorized);
 
+    // Phase 2: Skill Invention — missing capabilities → generate new skills
     if (plans.length === 0) {
-      console.log('No improvement opportunities found — harness is performing optimally.');
+      console.log('\n🔬 No improvement opportunities from existing capabilities.');
+      await this.inventSkills(failures);
       return experiments;
     }
 
@@ -222,6 +232,81 @@ export class ExperimentLoop {
     }
 
     return failures;
+  }
+
+  /**
+   * Phase 2: Skill Invention
+   * When harness is performing well, analyze what capabilities it LACKS
+   * and auto-generate new skills to fill those gaps
+   */
+  async inventSkills(failures: Failure[]): Promise<void> {
+    console.log('\n🔬 Phase 2: Skill Invention — analyzing capability gaps...');
+
+    // Identify gaps in Nova's skill set
+    const gaps = identifyCapabilityGaps(failures);
+
+    if (gaps.length === 0) {
+      console.log('   No capability gaps detected. Harness has all needed skills.');
+      return;
+    }
+
+    console.log(`\n   Found ${gaps.length} capability gap(s):`);
+    for (const gap of gaps.slice(0, 3)) {
+      console.log(`   • ${gap.name} (${gap.failureCount} failures, impact: ${gap.impact})`);
+    }
+
+    // Check if Ollama is available for LLM-based generation
+    const reachable = await isOllamaReachable();
+    if (!reachable) {
+      console.log('\n⚠️  Ollama not reachable — skipping skill generation.');
+      console.log('   (Set up Ollama at localhost:11434 to enable autonomous skill creation)');
+      return;
+    }
+
+    // Skills directory — look in the marketplace repo and workspace
+    const skillsDirs = [
+      '/Users/krischristen/Projects/ai-agent-marketplace/skills',
+      '/Users/krischristen/.openclaw/workspace/skills',
+    ];
+
+    for (const gap of gaps.slice(0, 3)) {
+      // Check if skill already exists
+      let alreadyExists = false;
+      for (const dir of skillsDirs) {
+        if (skillExists(gap.fileName, dir)) {
+          console.log(`\n   ⏭️  Skill "${gap.fileName}" already exists — skipping`);
+          alreadyExists = true;
+          break;
+        }
+      }
+      if (alreadyExists) continue;
+
+      console.log(`\n   🆕 Generating new skill: ${gap.fileName}...`);
+
+      try {
+        // Use Ollama to generate the skill
+        const generated = await generateSkill(
+          gap,
+          skillsDirs[0],
+          callOllama
+        );
+
+        // Validate generated skill
+        const validation = validateSkill(generated);
+        if (!validation.valid) {
+          console.log(`   ⚠️  Generated skill has issues:`);
+          for (const err of validation.errors) {
+            console.log(`     - ${err}`);
+          }
+        } else {
+          console.log(`   ✅ Skill "${gap.fileName}" generated and validated!`);
+          console.log(`     → ${generated}/SKILL.md`);
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.log(`   ❌ Skill generation failed: ${msg}`);
+      }
+    }
   }
 
   /** Log experiment to DB */
