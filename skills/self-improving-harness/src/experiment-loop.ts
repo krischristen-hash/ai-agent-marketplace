@@ -3,13 +3,14 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { defaultEditor, HarnessEditor } from './harness-editor.js';
+import { runBenchmark, BUILTIN_TASKS } from './benchmark-runner.js';
+import { scoreExperiment, compareScores } from './scorer.js';
 import {
   classifyFailure,
   categorizeFailures,
   rankImprovementOpportunities,
   generateAnalysisReport,
 } from './failure-analyzer.js';
-import { scoreExperiment, compareScores } from './scorer.js';
 import type {
   Experiment,
   ExperimentConfig,
@@ -20,7 +21,6 @@ import type {
   HarnessChange,
 } from './types.js';
 
-// Supabase connection (Nova's marketplace DB)
 const SUPABASE_URL = 'https://latoisacellcgrlvcpjz.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhdG9pc2FjZWxsY2dybHZjcGp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MDY4OTgsImV4cCI6MjA5MDM4Mjg5OH0.wuibE6munsQ40uTS3S4Aw33aY0k_6dtl1GFzjuIAVXo';
 
@@ -53,15 +53,43 @@ export class ExperimentLoop {
   /** Run the full experiment loop */
   async run(): Promise<Experiment[]> {
     const experiments: Experiment[] = [];
-    const baseline = await this.measureBaseline();
+
+    // Always establish current performance first (this IS the baseline)
+    console.log('\n📏 Establishing current harness performance...');
+    const baseline = await runBenchmark({
+      tasks: BUILTIN_TASKS,
+      workspaceDir: `/tmp/nova-baseline-${Date.now()}`,
+      onTaskStart(task) { process.stdout.write(`  ${task.id}... `); },
+      onTaskComplete(_task, res) {
+        process.stdout.write(`${res.passed ? '✅' : '❌'} `);
+      },
+    });
+    console.log(`\n   Baseline: ${baseline.passed}/${baseline.total} passed, avgScore=${baseline.avgScore.toFixed(3)}`);
 
     if (this.config.baselineOnly) {
-      console.log('Baseline only mode — skipping experiments');
+      console.log('Baseline-only mode — skipping experiments');
       return experiments;
     }
 
-    for (let i = 0; i < this.config.maxExperiments; i++) {
-      const exp = await this.runSingleExperiment(baseline, i);
+    // Analyze recent failures to find improvement opportunities
+    const failures = await this.fetchRecentFailures();
+    const categorized = categorizeFailures(failures);
+    const report = generateAnalysisReport(failures, categorized);
+    this.callbacks.onAnalysisComplete?.(report);
+    console.log(report);
+
+    // Get ranked improvement opportunities
+    const plans = rankImprovementOpportunities(categorized);
+
+    if (plans.length === 0) {
+      console.log('No improvement opportunities found — harness is performing optimally.');
+      return experiments;
+    }
+
+    // Run experiments for each improvement opportunity (up to maxExperiments)
+    for (let i = 0; i < Math.min(this.config.maxExperiments, plans.length); i++) {
+      const plan = plans[i];
+      const exp = await this.runSingleExperiment(baseline, plan, i);
       experiments.push(exp);
 
       if (exp.status === 'crash') {
@@ -69,20 +97,23 @@ export class ExperimentLoop {
         break;
       }
 
-      // NEVER STOP unless explicitly asked
-      // (this matches AutoAgent's "NEVER STOP" directive)
+      // AutoAgent "NEVER STOP" rule: continue until maxExperiments or no more plans
     }
 
     return experiments;
   }
 
-  /** Run one experiment cycle */
-  async runSingleExperiment(baseline: BenchmarkScore, index: number): Promise<Experiment> {
+  /** Run one experiment: apply change, benchmark, compare to baseline */
+  async runSingleExperiment(
+    baseline: BenchmarkScore,
+    plan: ImprovementPlan,
+    index: number
+  ): Promise<Experiment> {
     const commit = this.editor.getCurrentCommit();
     const exp: Experiment = {
       id: `exp-${Date.now()}-${index}`,
       commit,
-      description: this.config.description || 'Auto-generated experiment',
+      description: plan.description,
       target: this.config.target,
       baseline,
       status: 'running',
@@ -93,40 +124,15 @@ export class ExperimentLoop {
     this.callbacks.onExperimentStart?.(exp);
 
     try {
-      // Step 1: Analyze failures
-      console.log(`\n🔍 [Experiment ${index + 1}] Analyzing recent failures...`);
-      const failures = await this.fetchRecentFailures();
-      const categorized = categorizeFailures(failures);
-      const report = generateAnalysisReport(failures, categorized);
-      this.callbacks.onAnalysisComplete?.(report);
-      console.log(report);
-
-      if (failures.length === 0) {
-        console.log('No failures found — harness is performing perfectly!');
-        exp.status = 'keep';
-        exp.result = baseline;
-        return exp;
-      }
-
-      // Step 2: Plan improvement
-      const plans = rankImprovementOpportunities(categorized);
-      const plan = plans[0];
-      if (!plan) {
-        console.log('No improvement plan available');
-        exp.status = 'keep';
-        exp.result = baseline;
-        return exp;
-      }
-
-      console.log(`\n📋 Top improvement: ${plan.description}`);
+      console.log(`\n🚀 [Experiment ${index + 1}] ${plan.description}`);
+      console.log(`   Category: ${plan.category} | Expected: ${plan.expectedImpact} | Risk: ${plan.risk}`);
       console.log(`   File: ${plan.change.file}`);
-      console.log(`   Expected impact: ${plan.expectedImpact} | Risk: ${plan.risk}`);
 
-      // Step 3: Snapshot before change
+      // Snapshot before change
       const snapshot = this.editor.snapshot();
       this.editor.saveSnapshot(snapshot, `before-${exp.id}`);
 
-      // Step 4: Apply change
+      // Apply change
       console.log(`\n✏️  Applying harness change...`);
       const applied = this.editor.applyChange(plan.change);
       if (!applied) {
@@ -134,41 +140,46 @@ export class ExperimentLoop {
       }
       exp.changes.push(plan.change);
 
-      // Step 5: Commit
+      // Commit
       const changeCommit = this.editor.commit(
         `exp(${index + 1}): ${plan.change.reason}`
       );
       exp.commit = changeCommit;
       console.log(`   Committed: ${changeCommit}`);
 
-      // Step 6: Run benchmark
-      console.log(`\n🧪 Running benchmark...`);
-      const result = await this.runBenchmark();
+      // Run benchmark (same tasks, same conditions)
+      console.log(`\n🧪 Re-running benchmark after change...`);
+      const result = await runBenchmark({
+        tasks: BUILTIN_TASKS,
+        workspaceDir: `/tmp/nova-exp-${exp.id}`,
+        onTaskStart(task) { process.stdout.write(`  ${task.id}... `); },
+        onTaskComplete(_task, res) {
+          process.stdout.write(`${res.passed ? '✅' : '❌'} `);
+        },
+      });
 
-      // Step 7: Score and decide
+      // Score and decide
       const comparison = compareScores(baseline, result);
       exp.result = result;
       exp.durationMs = Date.now() - new Date(exp.timestamp).getTime();
 
       if (comparison.improved) {
         exp.status = 'keep';
-        console.log(`\n✅ KEEP — passed: ${result.passed}/${result.total} (was ${baseline.passed}/${baseline.total})`);
-        console.log(`   +${comparison.delta.passed} passed, score: ${baseline.avgScore} → ${result.avgScore}`);
+        console.log(`\n✅ KEEP — passed: ${result.passed}/${result.total} (baseline was ${baseline.passed}/${baseline.total})`);
+        console.log(`   Δpassed: ${comparison.delta.passed >= 0 ? '+' : ''}${comparison.delta.passed} | Δscore: ${comparison.delta.score >= 0 ? '+' : ''}${comparison.delta.score.toFixed(3)}`);
         this.callbacks.onKeep?.(exp);
-      } else if (comparison.same && plan.change.reason.includes('simpler')) {
+      } else if (comparison.same && plan.change.reason.toLowerCase().includes('simpler')) {
         exp.status = 'keep';
-        console.log(`\n✅ KEEP (simpler) — no regression`);
+        console.log(`\n✅ KEEP (simpler harness, same performance)`);
         this.callbacks.onKeep?.(exp);
       } else {
         exp.status = 'discard';
-        console.log(`\n❌ DISCARD — passed: ${result.passed}/${result.total} (was ${baseline.passed}/${baseline.total})`);
-        // Revert
-        console.log(`   Reverting to snapshot ${snapshot.commit}...`);
+        console.log(`\n❌ DISCARD — passed: ${result.passed}/${result.total} (baseline was ${baseline.passed}/${baseline.total})`);
+        console.log(`   Reverting to previous state...`);
         this.editor.restoreSnapshot(snapshot);
         this.callbacks.onDiscard?.(exp);
       }
 
-      // Step 8: Log result
       await this.logExperiment(exp);
       this.callbacks.onExperimentComplete?.(exp);
 
@@ -183,34 +194,11 @@ export class ExperimentLoop {
     }
   }
 
-  /** Measure current baseline score */
-  async measureBaseline(): Promise<BenchmarkScore> {
-    console.log('📏 Establishing baseline...');
-
-    // Check for recent task results in DB
-    const { data: rows } = await this.supabase
-      .from('task_results')  // May not exist yet — schema TBD
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(100);
-
-    if (!rows || rows.length === 0) {
-      // No data yet — return neutral baseline
-      return {
-        total: 0, passed: 0, failed: 0,
-        avgScore: 0, costUsd: 0,
-        taskScores: {}, durationMs: 0,
-      };
-    }
-
-    return scoreExperiment(rows);
-  }
-
   /** Fetch recent verification failures from DB */
   async fetchRecentFailures(windowHours = 72): Promise<Failure[]> {
     const cutoff = new Date(Date.now() - windowHours * 60 * 60 * 1000).toISOString();
 
-    // Try transactions table for failed payments (proxy for failed tasks)
+    // Try transactions table for failed payments
     const { data: txs } = await this.supabase
       .from('transactions')
       .select('id, status, created_at, memo')
@@ -218,7 +206,6 @@ export class ExperimentLoop {
       .gte('created_at', cutoff)
       .limit(200);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const failures: Failure[] = [];
 
     if (txs) {
@@ -234,26 +221,7 @@ export class ExperimentLoop {
       }
     }
 
-    // TODO: Add task_results table for structured task failure logging
-    // For now, use transactions as a proxy for "completed but failed" tasks
-
     return failures;
-  }
-
-  /** Run benchmark tasks (placeholder — hooks into Harbor or local test suite) */
-  async runBenchmark(): Promise<BenchmarkScore> {
-    // TODO: Run Harbor benchmark suite when tasks/ are available
-    // For now, return a simulated score based on change type
-
-    return {
-      total: 10,
-      passed: Math.floor(Math.random() * 5) + 3,  // Simulate 3-7 passed
-      failed: 0,
-      avgScore: 0.5 + Math.random() * 0.4,
-      costUsd: 0.05 + Math.random() * 0.10,
-      taskScores: {},
-      durationMs: 5000 + Math.floor(Math.random() * 10000),
-    };
   }
 
   /** Log experiment to DB */
