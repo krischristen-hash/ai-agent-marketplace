@@ -51,13 +51,14 @@ export async function POST(req: NextRequest) {
 
     if (txError) throw txError;
 
-    // Build Solana Pay URL
+    // Build Solana Pay URL — use DB reference as the on-chain memo so indexer can find it
     const url = buildSolanaPayUrl({
       recipient: NOVA_WALLET,
       amount: amountSol,
       label: 'Nova Platform',
       message: `Purchase: ${memo}`,
-      memo: reference,
+      reference,
+      memo: reference, // same as reference — indexer uses this to identify the tx
     });
 
     // Generate QR as data URI
@@ -82,6 +83,7 @@ function buildSolanaPayUrl(cfg: {
   amount: number;
   label: string;
   message: string;
+  reference: string;  // DB reference — used by indexer webhook
   memo: string;
 }): string {
   const u = new URL('solana:' + cfg.recipient);
@@ -89,6 +91,6 @@ function buildSolanaPayUrl(cfg: {
   u.searchParams.set('label', cfg.label);
   u.searchParams.set('message', cfg.message);
   u.searchParams.set('memo', cfg.memo);
-  u.searchParams.set('reference', crypto.randomUUID().replace(/-/g, '').slice(0, 16));
+  u.searchParams.set('reference', cfg.reference);
   return u.toString();
 }
